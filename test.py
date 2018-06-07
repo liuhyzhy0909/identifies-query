@@ -10,7 +10,7 @@ word_dic_file = 'dict.txt'
 jieba.load_userdict(word_dic_file)  # 添加自定义词库
 
 #将输入字符串进行词性标注
-input_string = "收益大于6%的产品"
+input_string = "锁定期大于3%的纯债"
 print(input_string)
 seg = jieba.posseg.cut(input_string)
 pos_list = []
@@ -115,26 +115,81 @@ for x in prd_type:
     else:
         prd_type_db.add(y)
 
+#字段名与产品类型矛盾判断，根据定义冲突字典实现
+name_opp_prdtype = {'lockperiod':['finan','debtfund'],'period':['fund','debtfund'],'srate':['fund','finan'],'lrate':['fund','finan'],'wrate':['finan','debtfund'],'qrate_opp':['finan','debtfund'],'yrate':['fund','debtfund']}
 
-#将识别的结果转成字典，再将字典转成json
-result = {"att_value:":att_value,"att_name:":list(attr_name_db),"relat_sign:":relat,"prd_type:":list(prd_type_db)}
+for x in attr_name:
+    if x in name_opp_prdtype.keys():
+        prd_opp = name_opp_prdtype[x]
+        for y in prd_type:
+            if y in prd_opp:
+                print('查询关键词（%s）与产品类型（%s）冲突！请重新输入'%(x,y))
 
-json_dic = json.dumps(result,indent =4 ,ensure_ascii=False)
+#字段名与字段值矛盾判断,通过正则表达式实现
+rate_list = ['rate','srate','lrate','nrate','yrate','wrate','qrate']
+peri_list = ['period','lockperiod']
+amin_list = ['minamount']
 
-print('='*80)
-print(json_dic)
+rate_opp_rule = u"((\\d+|[一二三四五六七八九十]?[一二三四五六七八九十])天)|((\\d+|[一二三四五六七八九十])年)|((\\d+|[一二三四五六七八九十])个?月)|((\\d+|[一二三四五六七八九十])(百|千|十)?万)"
+
+period_opp_rule = u"((\\d+)(\.)(\\d+)%)|((\\d+)%)|((\\d+|[一二三四五六七八九十])(百|千|十)?万)|((\\d+)(\.)(\\d+))"
+
+amint_opp_rule = u"((\\d+)(\.)(\\d+)%)|((\\d+)%)|(((\\d+|[一二三四五六七八九十]?[一二三四五六七八九十])天)|((\\d+|[一二三四五六七八九十])年)|((\\d+|[一二三四五六七八九十])个?月)"
+
+for x in attr_name:
+    if x in rate_list:
+        pattern = re.compile(rate_opp_rule)
+        match = pattern.search(att_value)
+
+        if match is not None:
+            print("查询关键词（%s）与属性值（%s）冲突！请重新输入"%(x,att_value))
+    elif x in peri_list:
+        pattern = re.compile(period_opp_rule)
+        match = pattern.search(att_value)
+
+        if match is not None:
+            print("查询关键词（%s）与属性值（%s）冲突！请重新输入" % (x, att_value))
+
+    elif x in amin_list:
+        pattern = re.compile(amint_opp_rule)
+        match = pattern.search(att_value)
+
+        if match is not None:
+            print("查询关键词（%s）与属性值（%s）冲突！请重新输入" % (x, att_value))
+
+
+
+#判断att_name和relat_sign是否为空，若为空，返回提示语，提示用户补全查询信息
+if relat:
+    if  attr_name:
+        # 将识别的结果转成字典，再将字典转成json
+        result = {"att_value:": att_value, "att_name:": list(attr_name_db), "relat_sign:": relat,
+                  "prd_type:": list(prd_type_db)}
+
+        json_dic = json.dumps(result, indent=4, ensure_ascii=False)
+
+        print('=' * 100)
+        print(json_dic)
+
+    else:
+        print("请补全查询关键词！")
+else:
+    print("请补全查询逻辑比较词！")
+
+
+
 '''
 print("att_value:",att_value)
 print("att_name:",attr_name_db)
 print("relat_sign:",relat)
 print("prd_type:",prd_type_db)
 '''
-#如果att_name为空，则为整数为全部字段，如果为小数，则为收益率或者起购金额
+##如果att_name为空，提示用户补全信息（则为整数为全部字段，如果为小数，则为收益率或者起购金额）
 
-#字段名称与产品类型矛盾的处理，如字段名为锁定期，产品类型为理财产品，而只有货币基金才有锁定期，这就矛盾了，需要做判断
+##字段名称与产品类型矛盾的处理，如字段名为锁定期，产品类型为理财产品，而只有货币基金才有锁定期，这就矛盾了，需要做判断
 
 #字段名称与字段值矛盾的处理，如收益率大于30天的产品
 
-#省略关系词的情况 自动补充：百分数为大于等于，起购金额大于等于，锁定期小于等于，理财期限等于
+##省略关系词的情况 ，提示用户补全信息（自动补充：百分数为大于等于，起购金额大于等于，锁定期小于等于，理财期限等于）
 
 #数字解析：2万解析为20000

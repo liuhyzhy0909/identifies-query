@@ -10,12 +10,14 @@ def get_key(dict, value):
 
 def GetPOS(input_string):
     # 将输入字符串进行词性标注
-    print(input_string)
+    print("用户输入为：",input_string)
+    print('='*100)
     seg = jieba.posseg.cut(input_string)
     pos_list = []
     for i in seg:
         pos_list.append((i.word, i.flag))
-    print(pos_list)
+    print("词性标注结果为：",pos_list)
+    print('=' * 100)
     return pos_list
 
 
@@ -48,7 +50,8 @@ def GetValue(input_string,pos_list,for_query_entry_judge_set):
         if match is not None:
             att_value = match.group()
 
-    print("att_value:", att_value)
+    print("解析字段值att_value为:", att_value)
+    print('='*100)
     return att_value
 
 def GetAttrName(att_value,for_query_entry_judge_set):
@@ -138,6 +141,61 @@ def Normalization(att_value,attr_name,prd_type,relat):
     print(json_dic)
     return json_dic
 
+def OrgNAPTopp(attr_name,prd_type,sign):
+    # 字段名与产品类型矛盾判断，根据定义冲突字典实现
+    #print("检测查询字段名称是否与产品类型冲突...")
+    name_opp_prdtype = {'lockperiod': ['finan', 'debtfund'], 'period': ['fund', 'debtfund'], 'srate': ['fund', 'finan'],
+                        'lrate': ['fund', 'finan'], 'wrate': ['finan', 'debtfund'], 'qrate_opp': ['finan', 'debtfund'],
+                        'yrate': ['fund', 'debtfund']}
+
+    for x in attr_name:
+        if x in name_opp_prdtype.keys():
+            prd_opp = name_opp_prdtype[x]
+            for y in prd_type:
+                if y in prd_opp:
+                    sign = 1
+                    print('查询关键词（%s）与产品类型（%s）冲突！请重新输入' % (x, y))
+    return sign
+
+def OrgNAVAopp(attr_name,att_value,sign):
+    # 字段名与字段值矛盾判断,通过正则表达式实现
+    #print("检测查询字段名称是否与字段值冲突...")
+    rate_list = ['rate', 'srate', 'lrate', 'nrate', 'yrate', 'wrate', 'qrate']
+    peri_list = ['period', 'lockperiod']
+    amin_list = ['minamount']
+
+    rate_opp_rule = u"((\\d+|[一二三四五六七八九十]?[一二三四五六七八九十])天)|((\\d+|[一二三四五六七八九十])年)|((\\d+|[一二三四五六七八九十])个?月)|((\\d+|[一二三四五六七八九十])(百|千|十)?万)"
+
+    period_opp_rule = u"((\\d+)(\.)(\\d+)%)|((\\d+)%)|((\\d+|[一二三四五六七八九十])(百|千|十)?万)|((\\d+)(\.)(\\d+))"
+
+    amint_opp_rule = u"((\\d+)(\.)(\\d+)%)|((\\d+)%)|(((\\d+|[一二三四五六七八九十]?[一二三四五六七八九十])天)|((\\d+|[一二三四五六七八九十])年)|((\\d+|[一二三四五六七八九十])个?月)"
+
+    for x in attr_name:
+        if x in rate_list:
+            pattern = re.compile(rate_opp_rule)
+            match = pattern.search(att_value)
+
+            if match is not None:
+                sign = 1
+                print("查询关键词（%s）与属性值（%s）冲突！请重新输入" % (x, att_value))
+        elif x in peri_list:
+            pattern = re.compile(period_opp_rule)
+            match = pattern.search(att_value)
+
+            if match is not None:
+                sign = 1
+                print("查询关键词（%s）与属性值（%s）冲突！请重新输入" % (x, att_value))
+
+        elif x in amin_list:
+            pattern = re.compile(amint_opp_rule)
+            match = pattern.search(att_value)
+
+            if match is not None:
+                sign = 1
+                print("查询关键词（%s）与属性值（%s）冲突！请重新输入" % (x, att_value))
+    return sign
+
+
     # 如果att_name为空，则为整数为全部字段，如果为小数，则为收益率或者起购金额
 
     # 字段名称与产品类型矛盾的处理，如字段名为锁定期，产品类型为理财产品，而只有货币基金才有锁定期，这就矛盾了，需要做判断
@@ -154,7 +212,7 @@ if __name__ == "__main__":
     word_dic_file = 'dict.txt'
     jieba.load_userdict(word_dic_file)  # 添加自定义词库
 
-    input_string = "收益大于6%的产品"
+    input_string = "理财期限大于6%的纯债"
     pos_list = GetPOS(input_string)
     for_query_entry_judge_set = set([x[1] for x in pos_list])
     que_sign =IdentQuery(for_query_entry_judge_set)
@@ -164,4 +222,17 @@ if __name__ == "__main__":
         a_name = GetAttrName(a_val,for_query_entry_judge_set)
         p_type = GetPrdType(for_query_entry_judge_set,a_name)
         re_sign = GetRelatSign(for_query_entry_judge_set)
-        result = Normalization(a_val,a_name,p_type,re_sign)
+        sign = 0
+        sign_np = OrgNAPTopp(a_name,p_type,sign)
+        sign_nv = OrgNAVAopp(a_name,a_val,sign)
+        if sign_np==0 and sign_nv == 0:
+            #print("检测完成，没有发现冲突！")
+            # 判断att_name和relat_sign是否为空，若为空，返回提示语，提示用户补全查询信息
+            if re_sign:
+                if a_name:
+                    # 将识别的结果转成字典，再将字典转成json
+                    result = Normalization(a_val,a_name,p_type,re_sign)
+                else:
+                    print("请补全查询关键词！")
+            else:
+                print("请补全查询逻辑比较词！")
