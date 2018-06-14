@@ -10,7 +10,7 @@ word_dic_file = 'dict.txt'
 jieba.load_userdict(word_dic_file)  # 添加自定义词库
 
 #将输入字符串进行词性标注
-input_string = "锁定期大于3%的纯债"
+input_string = "锁定期大于3天和收益率大于5%的产品"
 print(input_string)
 seg = jieba.posseg.cut(input_string)
 pos_list = []

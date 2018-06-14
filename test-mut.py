@@ -3,21 +3,19 @@ import jieba.posseg as psg
 import regex as re
 import json
 
-#注意：为了修复词性标注将百分数的数字和百分号分开，修改了源码：C:\Users\liuhy\AppData\Local\Programs\Python\Python36\Lib\site-packages\jieba\posseg\_init_.py
-
 def get_key(dict, value):
     return [k for k, v in dict.items() if v == value]
 
 def GetPOS(input_string):
     # 将输入字符串进行词性标注
-    print("用户输入为：",input_string)
-    print('='*100)
+    #print("用户输入为：",input_string)
+    #print('='*100)
     seg = jieba.posseg.cut(input_string)
     pos_list = []
     for i in seg:
         pos_list.append((i.word, i.flag))
-    print("词性标注结果为：",pos_list)
-    print('=' * 100)
+    #print("词性标注结果为：",pos_list)
+    #print('=' * 100)
     return pos_list
 
 
@@ -50,8 +48,8 @@ def GetValue(input_string,pos_list,for_query_entry_judge_set):
         if match is not None:
             att_value = match.group()
 
-    print("解析字段值att_value为:", att_value)
-    print('='*100)
+    #print("解析字段值att_value为:", att_value)
+    #print('='*100)
     return att_value
 
 def GetAttrName(att_value,for_query_entry_judge_set):
@@ -137,7 +135,7 @@ def Normalization(att_value,attr_name,prd_type,relat):
 
     json_dic = json.dumps(result, indent=4, ensure_ascii=False)
 
-    print('=' * 80)
+    #print('=' * 80)
     print(json_dic)
     return json_dic
 
@@ -206,8 +204,11 @@ def OrgNAVAopp(attr_name,att_value,sign):
 
     # 数字解析：2万解析为20000
 
-def SingleQueryAna(input_string):
-    pos_list = GetPOS(input_string)
+#输入单关键词查询语句，解析成json结构体
+def SingleQueryAna(pos_list):
+    #pos_list = GetPOS(input_string)
+    input_string = [x[0] for x in pos_list]
+    input_string =''.join(input_string)
     for_query_entry_judge_set = set([x[1] for x in pos_list])
     que_sign = IdentQuery(for_query_entry_judge_set)
 
@@ -219,6 +220,7 @@ def SingleQueryAna(input_string):
         sign = 0
         sign_np = OrgNAPTopp(a_name, p_type, sign)
         sign_nv = OrgNAVAopp(a_name, a_val, sign)
+        result = 0
         if sign_np == 0 and sign_nv == 0:
             # print("检测完成，没有发现冲突！")
             # 判断att_name和relat_sign是否为空，若为空，返回提示语，提示用户补全查询信息
@@ -232,12 +234,107 @@ def SingleQueryAna(input_string):
                 print("请补全查询逻辑比较词！")
         return result
 
+#统计词性标注的结果与对应的字段类型匹配的个数
+def getValueCount(list,value_set):
+    list_value =[x[1] for x in list]
+    count = 0
+    for x in list_value:
+        if x in value_set:
+            count = count +1
+    return count
 
+#判断查询为多关键词还是单关键词查询,本程序默认关键词不能省略，若省略关键词，提示用户补全查询信息,若mut=1则为单关键词查询，若为2则为多关键词查询
+def JudgeMuSingle(pos_list):
+    for_query_entry_judge_set = set([x[1] for x in pos_list])
+    attr_name_set = {'rate', 'qrate', 'yrate', 'srate', 'wrate', 'lrate', 'nrate', 'period', 'lockperiod', 'minamount'}
+    attr_name_t = for_query_entry_judge_set & attr_name_set
+    #print(attr_name_t)
+
+    att_value_set = {'num', 'bf','m'}
+    att_value_t = getValueCount(pos_list, att_value_set)
+    #print(att_value_t)
+    if len(attr_name_t) <= 1 and att_value_t == 1:
+        mut = 1
+    elif len(attr_name_t) > 1 or att_value_t > 1:
+        # 判断为多关键字查询
+        if len(attr_name_t) <= att_value_t:
+
+            mut = 2
+        else:
+            mut = 3
+            print("请补全查询信息！")
+    # else:
+    # 暂时判断为单关键词查询，后面如果增加单关键词的多条件查询可以细分，暂时先不区分，后面增加了后可以增加mut的类型，不只有0和1
+    return mut
+
+#识别布尔逻辑词
+def OrgnBool(input_string):
+    boolean = 'and'
+    rule_or = u"(或)"
+    pattern_or = re.compile(rule_or)
+    match_or = pattern_or.search(input_string)
+
+    if match_or is not None:
+        boolean = 'or'
+    return boolean
+
+#将多关键词查询语句切分成多个单一关键词查询语句
+def SplitQuery(input_string,pos_list):
+    attr_name_set = {'rate', 'qrate', 'yrate', 'srate', 'wrate', 'lrate', 'nrate', 'period', 'lockperiod', 'minamount'}
+    rule_split = u"[或和且，、 ,]"
+    pattern_split = re.compile(rule_split)
+    match_split = pattern_split.split(input_string)
+    query_list = []
+
+    if len(match_split) != 1:
+        #print(match_split)
+        mut_query_list = match_split
+        for x in mut_query_list:
+            ##待增加：被正则表达式分割后的元素中扔包含多关键词查询，需要进一步拆分
+            pos_x = GetPOS(x)
+            query_list.append(pos_x)
+
+        # 下面是将mut_query_list中的每个元素进行单关键词查询语句的解析
+    else:
+        pos_list_split = pos_list
+        j = 0
+        for i in range(1, len(pos_list_split)):
+            if pos_list_split[i][1] in attr_name_set:
+                # print(i)
+                query_str1 = pos_list_split[j:i]
+                query_list.append(query_str1)
+                # print("单查询：", query_list)
+                # print(query_str1)
+                j = i
+        query_list.append(pos_list_split[j:])
+
+    #print(query_list)
+    return query_list
 
 if __name__ == "__main__":
     # 结巴分词词典加载
     word_dic_file = 'dict.txt'
     jieba.load_userdict(word_dic_file)  # 添加自定义词库
 
-    input_string = "锁定期大于3天的产品"
-    res = SingleQueryAna(input_string)
+    text = "锁定期和理财期限小于30天"
+    pos_list = GetPOS(text)
+    print(text)
+    print(pos_list)
+
+    #判断为单关键词查询还是多关键词查询
+    mut_sign = JudgeMuSingle(pos_list)
+    #print("*" * 200)
+    if mut_sign == 1:
+        resu = SingleQueryAna(pos_list)
+        #print(resu)
+    elif mut_sign == 2:
+        # 判断boolen
+        boolen_sign = OrgnBool(text)
+
+        print(boolen_sign)
+        que_list = SplitQuery(text,pos_list)
+        json_list = []
+        for que in que_list:
+            que_json = SingleQueryAna(que)
+            json_list.append(que_json)
+        #print(json_list)

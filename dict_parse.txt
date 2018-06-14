@@ -1,77 +1,69 @@
-是 eql
-为 eql
-等于 eql
-小于 lt
-少于 lt
-大于 gt
-高于 gt
-不少于 gte
-不低于 gte
-不高于 lte
-不多于 lte
-大于等于 gte
-小于等于 lte
+是
+为
+等于
+小于
+少于
+大于
+高于
+不少于
+不低于
+不高于
+不多于
+大于等于
+小于等于
 
-收益 rate
-收益率 rate
-七日年化收益率 qrate
-七日年化收益 qrate
-七日年化 qrate
-预期收益 yrate
-预期收益率 yrate
-三个月涨幅 srate
-3个月涨幅 srate
-三月涨幅 srate
-3月涨幅 srate
+收益 n
+收益率 n
+七日年化收益率 n
+七日年化收益 n
+七日年化 n
+预期收益 n
+预期收益率 n
+三个月涨幅 n
+3个月涨幅 n
+三月涨幅 n
+3月涨幅 n
 
-万份收益 wrate
-万分收益 wrate
-万份收益率 wrate
-六个月涨幅 lrate
-6个月涨幅 lrate
-6月涨幅 lrate
-六月涨幅 lrate
+万份收益 n
+万份收益率 n
+六个月涨幅 n
+6个月涨幅 n
+6月涨幅 n
+六月涨幅 n
 
-12个月涨幅 nrate
-12月涨幅 nrate
-十二月涨幅 nrate
-十二个月涨幅 nrate
-一年涨幅 nrate
-1年涨幅 nrate
+12个月涨幅 n
+12月涨幅 n
+十二月涨幅 n
+十二个月涨幅 n
+一年涨幅 n
+1年涨幅 n
 
-理财期限 period
-期限 period
-锁定期 lockperiod
-锁定时间 lockperiod
-锁定期限 lockperiod
-起购金额 minamount
-起购钱数 minamount
+理财期限 n
+期限 n
+锁定期 n
+锁定时间 n
+锁定期限 n
+起购金额 n
+起购钱数 n
 
-产品 allprd
-金融产品 allprd
+产品 n
+金融产品 n
 
-理财产品 finan
-理财 finan
+理财产品 n
+理财 n
 
-货币基金 fund
-货基 fund
-宝宝类产品 fund
-宝宝产品 fund
-宝宝 fund
+货币基金 n
+货基 n
+宝宝类产品 n
+宝宝产品 n
+宝宝 n
 
-纯债基金 debtfund
-纯债 debtfund
+纯债基金 n
+纯债 n
 
-或 or
-或者 or
-或是 or
-和 and
-且 and
-而且 and
-并且 and
-
-
+， w
 126天
+非凡资产
 非凡资产管理126天增利
 非凡资产管理季增利
 非凡资产管理双月增利
