@@ -1,0 +1,7 @@
+1、_init_.py为修改的jieba分词的源码，将改程序替换jieba目录下pos目录下的同名文件
+2、dict.txt为jieba分词自定义词典
+3、test_single.py为单关键词查询的实现程序
+4、test_parse.py为依存句法分析的程序
+5、test_mut.py为组合查询的主程序
+6、dict_parse.py为依存句法分析的自定义词典
+7、HuanNLP-master为依存句法分析的依赖

@@ -40,7 +40,7 @@ def GetValue(input_string,pos_list,for_query_entry_judge_set):
     if 'bf' in for_query_entry_judge_set:
         att_value = num_list[0]
     else:
-        rule = u"((\\d+)(\.)(\\d+)%)|((\\d+)%)|(((\\d+|[一二三四五六七八九十]?[一二三四五六七八九十])天)|((\\d+|[一二三四五六七八九十])年)|((\\d+|[一二三四五六七八九十])个?月)(?!涨幅)|((\\d+|[一二三四五六七八九十])(百|千|十)?万)|((\\d+)(\.)(\\d+))|(\\d+))"
+        rule = u"((\\d+)(\.)(\\d+)%)|((\\d+)%)|(百分之[一二三四五六七八九十])|(((\\d+|[一二三四五六七八九十]?[一二三四五六七八九十])天)|((\\d+|[一二三四五六七八九十])年)|((\\d+|[一二三四五六七八九十])个?月)(?!涨幅)|((\\d+|[一二三四五六七八九十])(百|千|十)?万)|((\\d+)(\.)(\\d+))|(\\d+))"
 
         pattern = re.compile(rule)
         match = pattern.search(input_string)
@@ -130,14 +130,14 @@ def Normalization(att_value,attr_name,prd_type,relat):
             prd_type_db.add(y)
 
     # 将识别的结果转成字典，再将字典转成json
-    result = {"att_value:": att_value, "att_name:": list(attr_name_db), "relat_sign:": relat,
-              "prd_type:": list(prd_type_db)}
+    result = {"att_value": att_value, "att_name": list(attr_name_db), "relat_sign": relat,
+              "prd_type": list(prd_type_db)}
 
-    json_dic = json.dumps(result, indent=4, ensure_ascii=False)
+    #json_dic = json.dumps(result, indent=4, ensure_ascii=False)
 
     #print('=' * 80)
-    print(json_dic)
-    return json_dic
+    #print(result)
+    return result
 
 def OrgNAPTopp(attr_name,prd_type,sign):
     # 字段名与产品类型矛盾判断，根据定义冲突字典实现
@@ -269,13 +269,13 @@ def JudgeMuSingle(pos_list):
 
 #识别布尔逻辑词
 def OrgnBool(input_string):
-    boolean = 'and'
-    rule_or = u"(或)"
+    boolean = 'or'
+    rule_or = u"[和且]"
     pattern_or = re.compile(rule_or)
     match_or = pattern_or.search(input_string)
 
     if match_or is not None:
-        boolean = 'or'
+        boolean = 'and'
     return boolean
 
 #将多关键词查询语句切分成多个单一关键词查询语句
@@ -311,30 +311,68 @@ def SplitQuery(input_string,pos_list):
     #print(query_list)
     return query_list
 
-if __name__ == "__main__":
-    # 结巴分词词典加载
-    word_dic_file = 'dict.txt'
-    jieba.load_userdict(word_dic_file)  # 添加自定义词库
+#单关键词查询间是否矛盾查询，主要指and的情况，or的情况不做判断
+def JudgeContra(json_l,boolen_s):
+    if boolen_s == 'or':
+        result = json_l
+    else:
+        prd_set = set([1,2,3])
+        for dic in json_l:
+            d_prd = set(dic['prd_type'])
+            prd_set = prd_set & d_prd
+            if prd_set == set():
 
-    text = "锁定期和理财期限小于30天"
+                print("查询语句间有矛盾！")
+                break
+        if prd_set != set():
+            for dic in json_l:
+                dic['prd_type'] = list(prd_set)
+        else:
+            json_l = []
+
+    return json_l
+
+#组合查询主函数
+def GetResult(text):
+    #text = "锁定期小于3天"
     pos_list = GetPOS(text)
     print(text)
     print(pos_list)
 
-    #判断为单关键词查询还是多关键词查询
+    # 判断为单关键词查询还是多关键词查询
     mut_sign = JudgeMuSingle(pos_list)
-    #print("*" * 200)
+    # print("*" * 200)
     if mut_sign == 1:
-        resu = SingleQueryAna(pos_list)
-        #print(resu)
+        result = SingleQueryAna(pos_list)
+        json_dic = json.dumps(result, indent=4, ensure_ascii=False)
+        print(json_dic)
+        # print(resu)
     elif mut_sign == 2:
         # 判断boolen
         boolen_sign = OrgnBool(text)
 
-        print(boolen_sign)
-        que_list = SplitQuery(text,pos_list)
+        #print(boolen_sign)
+        que_list = SplitQuery(text, pos_list)
         json_list = []
         for que in que_list:
             que_json = SingleQueryAna(que)
             json_list.append(que_json)
-        #print(json_list)
+            json_list = JudgeContra(json_list,boolen_sign)
+        # 将结果拼成json结构
+        json_list = [x for x in json_list if x!=0]
+        result = dict()
+        if boolen_sign == 'and':
+            result['must'] = json_list
+        else:
+            result['should'] = json_list
+        json_dic = json.dumps(result, indent=4, ensure_ascii=False)
+        print(json_dic)
+    return json_dic
+
+
+if __name__ == "__main__":
+    # 结巴分词词典加载
+    word_dic_file = 'dict.txt'
+    jieba.load_userdict(word_dic_file)  # 添加自定义词库
+    text = "大于5%、小于30天的理财产品"
+    output = GetResult(text)
