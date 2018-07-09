@@ -55,7 +55,7 @@ def GetValue(input_string,pos_list,for_query_entry_judge_set):
 def GetAttrName(att_value,for_query_entry_judge_set):
 
     # 识别字段名attr_name,如果有字段名字段直接提取，若没有根据value判断
-    attr_name_set = {'rate', 'qrate', 'yrate', 'srate', 'wrate', 'lrate', 'nrate', 'period', 'lockperiod', 'minamount'}
+    attr_name_set = {'rate', 'qrate', 'yrate', 'srate', 'wrate', 'lrate', 'nrate', 'period', 'lockperiod', 'minamount','interestrate'}
     attr_name_t = for_query_entry_judge_set & attr_name_set
     attr_name = set()
     if attr_name_t:
@@ -67,6 +67,7 @@ def GetAttrName(att_value,for_query_entry_judge_set):
             attr_name = {'period', 'lockperiod'}
         elif '万' in att_value:
             attr_name = {'minamount'}
+    #print(attr_name)
     return attr_name
 
     # if query_sign ==1:
@@ -77,10 +78,11 @@ def GetAttrName(att_value,for_query_entry_judge_set):
 def GetPrdType(for_query_entry_judge_set,attr_name):
 
     # 确定产品类型prd_type,如果有产品类型直接提取，若没有根据attr_name判断
-    prd_type_set = {'allprd', 'finan', 'fund', 'debtfund'}
+    prd_type_set = {'allprd', 'finan', 'fund', 'debtfund','deposit'}
     finan_char = {'period', 'yrate'}
     fund_char = {'lockperiod', 'qrate', 'wrate'}
     debtfund_char = {'srate', 'lrate', 'nrate'}
+    deposit_char = {'interestrate'}
 
     prd_type_t = prd_type_set & for_query_entry_judge_set
 
@@ -88,14 +90,26 @@ def GetPrdType(for_query_entry_judge_set,attr_name):
     if prd_type_t and 'allprd' not in prd_type_t:
         prd_type = prd_type_t
     else:
-        if attr_name & finan_char:
+        if attr_name.issubset(finan_char) :
             prd_type = {'finan'}
 
-        elif attr_name & fund_char:
+        elif attr_name.issubset(fund_char):
             prd_type = {'fund'}
-        elif attr_name & debtfund_char:
+        elif attr_name.issubset(debtfund_char):
             prd_type = {'debtfund'}
-    return prd_type
+        elif attr_name.issubset(deposit_char):
+            prd_type = {'deposit'}
+
+    name_prdtype = {'finan': ['period', 'yrate'], 'fund': ['lockperiod', 'qrate', 'wrate'],
+                    'debtfund': ['srate', 'lrate', 'nrate']}
+    attr_name_judge = {'period','lockperiod'}
+    if prd_type != {'allprd'} and attr_name & attr_name_judge:
+        for m in prd_type:
+            if set(name_prdtype[m]) & attr_name:
+                attr_name = set(name_prdtype[m]) & attr_name
+
+    #print(prd_type)
+    return prd_type,attr_name
 
 def GetRelatSign(for_query_entry_judge_set):
 
@@ -107,12 +121,21 @@ def GetRelatSign(for_query_entry_judge_set):
         relat = list(relat_set_t)[0]
     return relat
 
-def Normalization(att_value,attr_name,prd_type,relat):
+def GetOrg(pos_list):
+    #识别机构名称，若没有机构名称，默认为所有机构
+    for_query_entry_judge_set = set([x[1] for x in pos_list])
+    org_sign = 'allorg'
+    if 'org' in for_query_entry_judge_set:
+        org_sign = get_key(dict(pos_list), 'org')
+        org_sign = ','.join(org_sign)
+    return org_sign
+
+def Normalization(att_value,attr_name,prd_type,relat,org_sign):
     # 将rate字段规范成数据库字段，定义对应关系字典
     databs_att_dic = {'rate': 'RATE', 'qrate': 'RATE', 'yrate': 'RATE', 'srate': 'RATE', 'wrate': 'RATE2',
                       'lrate': 'RATE2', 'nrate': 'RATE3', 'period': 'PERIOD', 'minamount': 'MIN_AMOUNT',
-                      'lockperiod': 'LOCKPERIOD'}
-    databs_prdtype_dic = {'allprd': '1,2,3', 'finan': 2, 'fund': 1, 'debtfund': 3}
+                      'lockperiod': 'LOCKPERIOD','interestrate':'RATE'}
+    databs_prdtype_dic = {'allprd': '1,2,3,4', 'finan': 2, 'fund': 1, 'debtfund': 3,'deposit':4}
     attr_name_db = set()
     for x in attr_name:
         y = databs_att_dic[x]
@@ -131,7 +154,7 @@ def Normalization(att_value,attr_name,prd_type,relat):
 
     # 将识别的结果转成字典，再将字典转成json
     result = {"att_value": att_value, "att_name": list(attr_name_db), "relat_sign": relat,
-              "prd_type": list(prd_type_db)}
+              "prd_type": list(prd_type_db),"org":org_sign}
 
     #json_dic = json.dumps(result, indent=4, ensure_ascii=False)
 
@@ -142,23 +165,33 @@ def Normalization(att_value,attr_name,prd_type,relat):
 def OrgNAPTopp(attr_name,prd_type,sign):
     # 字段名与产品类型矛盾判断，根据定义冲突字典实现
     #print("检测查询字段名称是否与产品类型冲突...")
-    name_opp_prdtype = {'lockperiod': ['finan', 'debtfund'], 'period': ['fund', 'debtfund'], 'srate': ['fund', 'finan'],
-                        'lrate': ['fund', 'finan'], 'wrate': ['finan', 'debtfund'], 'qrate_opp': ['finan', 'debtfund'],
-                        'yrate': ['fund', 'debtfund']}
+    if 'allprd' in prd_type:
+        sign = 0
+    else:
+        name_opp_prdtype = {'lockperiod': ['finan', 'debtfund'], 'period': ['fund', 'debtfund'],
+                            'srate': ['fund', 'finan'],
+                            'lrate': ['fund', 'finan'], 'wrate': ['finan', 'debtfund'],
+                            'qrate_opp': ['finan', 'debtfund'],
+                            'yrate': ['fund', 'debtfund']}
+        name_prdtype = {'finan': ['period', 'yrate'], 'fund': ['lockperiod', 'qrate', 'wrate'],
+                        'debtfund': ['srate', 'lrate', 'nrate']}
 
-    for x in attr_name:
-        if x in name_opp_prdtype.keys():
-            prd_opp = name_opp_prdtype[x]
-            for y in prd_type:
-                if y in prd_opp:
-                    sign = 1
-                    print('查询关键词（%s）与产品类型（%s）冲突！请重新输入' % (x, y))
+        for m in prd_type:
+            if set(name_prdtype[m]) & attr_name:
+                sign = 0
+            else:
+                for x in attr_name:
+                    if x in name_opp_prdtype.keys():
+                        prd_opp = name_opp_prdtype[x]
+                        if m in prd_opp:
+                            sign = 1
+                            print('查询关键词（%s）与产品类型（%s）冲突！请重新输入' % (x, m))
     return sign
 
 def OrgNAVAopp(attr_name,att_value,sign):
     # 字段名与字段值矛盾判断,通过正则表达式实现
     #print("检测查询字段名称是否与字段值冲突...")
-    rate_list = ['rate', 'srate', 'lrate', 'nrate', 'yrate', 'wrate', 'qrate']
+    rate_list = ['rate', 'srate', 'lrate', 'nrate', 'yrate', 'wrate', 'qrate','interestrate']
     peri_list = ['period', 'lockperiod']
     amin_list = ['minamount']
 
@@ -215,19 +248,20 @@ def SingleQueryAna(pos_list):
     if que_sign:
         a_val = GetValue(input_string, pos_list, for_query_entry_judge_set)
         a_name = GetAttrName(a_val, for_query_entry_judge_set)
-        p_type = GetPrdType(for_query_entry_judge_set, a_name)
+        p_type,a_name = GetPrdType(for_query_entry_judge_set, a_name)
         re_sign = GetRelatSign(for_query_entry_judge_set)
         sign = 0
         sign_np = OrgNAPTopp(a_name, p_type, sign)
         sign_nv = OrgNAVAopp(a_name, a_val, sign)
         result = 0
+        org_sign = GetOrg(pos_list)
         if sign_np == 0 and sign_nv == 0:
             # print("检测完成，没有发现冲突！")
             # 判断att_name和relat_sign是否为空，若为空，返回提示语，提示用户补全查询信息
             if re_sign:
                 if a_name:
                     # 将识别的结果转成字典，再将字典转成json
-                    result = Normalization(a_val, a_name, p_type, re_sign)
+                    result = Normalization(a_val, a_name, p_type, re_sign,org_sign)
                 else:
                     print("请补全查询关键词！")
             else:
@@ -281,6 +315,7 @@ def OrgnBool(input_string):
 #将多关键词查询语句切分成多个单一关键词查询语句
 def SplitQuery(input_string,pos_list):
     attr_name_set = {'rate', 'qrate', 'yrate', 'srate', 'wrate', 'lrate', 'nrate', 'period', 'lockperiod', 'minamount'}
+    attr_rela_set = {'eql', 'lt', 'gt', 'lte', 'gte'}
     rule_split = u"[或和且，、 ,]"
     pattern_split = re.compile(rule_split)
     match_split = pattern_split.split(input_string)
@@ -305,6 +340,13 @@ def SplitQuery(input_string,pos_list):
                 query_list.append(query_str1)
                 # print("单查询：", query_list)
                 # print(query_str1)
+                j = i
+
+            elif pos_list_split[i-1][1] not in attr_name_set and pos_list_split[i][1] in attr_rela_set:
+                quer_str = pos_list_split[j:i]
+                query_list.append(quer_str)
+                #print("单查询：", query_list)
+                #print(quer_str)
                 j = i
         query_list.append(pos_list_split[j:])
 
@@ -341,11 +383,12 @@ def GetResult(text):
 
     # 判断为单关键词查询还是多关键词查询
     mut_sign = JudgeMuSingle(pos_list)
+    json_dic = {}
     # print("*" * 200)
     if mut_sign == 1:
         result = SingleQueryAna(pos_list)
         json_dic = json.dumps(result, indent=4, ensure_ascii=False)
-        print(json_dic)
+        #print(json_dic)
         # print(resu)
     elif mut_sign == 2:
         # 判断boolen
@@ -360,13 +403,21 @@ def GetResult(text):
             json_list = JudgeContra(json_list,boolen_sign)
         # 将结果拼成json结构
         json_list = [x for x in json_list if x!=0]
+        json_list = [x for x in json_list if x!=None]
         result = dict()
-        if boolen_sign == 'and':
-            result['must'] = json_list
+        if len(json_list)>1:
+            if boolen_sign == 'and':
+                result['must'] = json_list
+            else:
+                result['should'] = json_list
         else:
-            result['should'] = json_list
+            if len(json_list) != 0:
+                result = json_list[0]
+            else:
+                result = dict()
         json_dic = json.dumps(result, indent=4, ensure_ascii=False)
-        print(json_dic)
+
+        #print(json_dic)
     return json_dic
 
 
@@ -374,5 +425,21 @@ if __name__ == "__main__":
     # 结巴分词词典加载
     word_dic_file = 'dict.txt'
     jieba.load_userdict(word_dic_file)  # 添加自定义词库
-    text = "大于5%、小于30天的理财产品"
+    text = "锁定期和理财期限小于30天"
     output = GetResult(text)
+    if output:
+        print(output)
+'''
+万份收益大于1.3、锁定期大于3天、理财期限小于30天的产品
+收益率大于5%、起购金额小于5万
+收益率大于5%起购金额小于5万
+收益率大于5%且起购金额小于5万
+收益率大于5% 起购金额小于5万
+大于5% 起购金额小于5万
+收益率大于5%或起购金额小于5万
+大于5%、理财期限小于30天
+万份收益、起购金额大于1的产品
+大于5%、小于30天的理财产品
+大于5%小于30天的产品
+锁定期和理财期限小于30天
+'''
