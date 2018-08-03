@@ -24,7 +24,7 @@ def IdentQuery(for_query_entry_judge_set):
     # 若组合查询标识为1，则进入组合查询识别阶段,否则进入关键词查询
     query_sign = 0
 
-    if 'num' in for_query_entry_judge_set or 'm' in for_query_entry_judge_set or 'bf' in for_query_entry_judge_set:
+    if 'bf' in for_query_entry_judge_set or 'm' in for_query_entry_judge_set or 'num' in for_query_entry_judge_set:
         query_sign = 1
     else:
         print("无法识别组合查询语句，请使用关键词搜索！")
@@ -255,6 +255,7 @@ def SingleQueryAna(pos_list):
         sign_nv = OrgNAVAopp(a_name, a_val, sign)
         result = 0
         org_sign = GetOrg(pos_list)
+        #print(org_sign)
         if sign_np == 0 and sign_nv == 0:
             # print("检测完成，没有发现冲突！")
             # 判断att_name和relat_sign是否为空，若为空，返回提示语，提示用户补全查询信息
@@ -333,7 +334,7 @@ def SplitQuery(input_string,pos_list):
     else:
         pos_list_split = pos_list
         j = 0
-        for i in range(1, len(pos_list_split)):
+        for i in range(2, len(pos_list_split)):
             if pos_list_split[i][1] in attr_name_set:
                 # print(i)
                 query_str1 = pos_list_split[j:i]
@@ -353,10 +354,10 @@ def SplitQuery(input_string,pos_list):
     #print(query_list)
     return query_list
 
-#单关键词查询间是否矛盾查询，主要指and的情况，or的情况不做判断
+#单关键词查询间是否矛盾查询，主要指and的情况，主要指产品类型，or的情况不做判断
 def JudgeContra(json_l,boolen_s):
     if boolen_s == 'or':
-        result = json_l
+        json_l = json_l
     else:
         prd_set = set([1,2,3])
         for dic in json_l:
@@ -396,6 +397,10 @@ def GetResult(text):
 
         #print(boolen_sign)
         que_list = SplitQuery(text, pos_list)
+        #北京银行收益率大于5%锁定期小于1天的产品，机构‘北京银行’在分割后只在第一个查询语句中，但实际的语义第二个也包含，需要给第二个句子补全机构信息
+        #收益率大于5%，北京银行锁定期小于1天的产品，此种情况不需要给第一个句子补全
+        #暂不增加
+
         json_list = []
         for que in que_list:
             que_json = SingleQueryAna(que)
@@ -404,6 +409,12 @@ def GetResult(text):
         # 将结果拼成json结构
         json_list = [x for x in json_list if x!=0]
         json_list = [x for x in json_list if x!=None]
+        #对‘收益率大于4%小于6%的产品’逻辑词的更正
+        #询语句中不包含‘且’，但其含义是‘且’，判断方法为补全单关键词查询的att_name后，多个单关键词查询的att_name相同，则将逻辑词识别为and
+        att_name_list = set(["".join(x['att_name']) for x in json_list])
+        if len(att_name_list) ==1:
+            boolen_sign = 'and'
+        #
         result = dict()
         if len(json_list)>1:
             if boolen_sign == 'and':
@@ -425,21 +436,7 @@ if __name__ == "__main__":
     # 结巴分词词典加载
     word_dic_file = 'dict.txt'
     jieba.load_userdict(word_dic_file)  # 添加自定义词库
-    text = "锁定期和理财期限小于30天"
+    text = "北京银行收益率大于3%锁定期小于1天的产品"
     output = GetResult(text)
     if output:
         print(output)
-'''
-万份收益大于1.3、锁定期大于3天、理财期限小于30天的产品
-收益率大于5%、起购金额小于5万
-收益率大于5%起购金额小于5万
-收益率大于5%且起购金额小于5万
-收益率大于5% 起购金额小于5万
-大于5% 起购金额小于5万
-收益率大于5%或起购金额小于5万
-大于5%、理财期限小于30天
-万份收益、起购金额大于1的产品
-大于5%、小于30天的理财产品
-大于5%小于30天的产品
-锁定期和理财期限小于30天
-'''
